@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SignOutButton } from "@clerk/nextjs";
+import { useClerk } from "@clerk/nextjs";
 import { ThemeTextButton } from "./ThemeToggle";
 import { TxProvider, useTx } from "./TxProvider";
 
@@ -53,9 +53,7 @@ function Sidebar() {
       </button>
       <div className="mt-auto flex flex-col gap-0.5">
         <ThemeTextButton className={sideBtn} />
-        <SignOutButton redirectUrl="/sign-in">
-          <button className={sideBtn}>Salir</button>
-        </SignOutButton>
+        <SignOutBtn className={sideBtn} />
       </div>
     </aside>
   );
@@ -101,9 +99,20 @@ export function AddButton({ className, children }: { className: string; children
 export function MobileSignOut() {
   return (
     <div className="mt-10 flex justify-center desk:hidden">
-      <SignOutButton redirectUrl="/sign-in">
-        <button className="cursor-pointer rounded-[10px] px-4 py-2 text-sm text-faint hover:bg-chip">Salir</button>
-      </SignOutButton>
+      <SignOutBtn className="cursor-pointer rounded-[10px] px-4 py-2 text-sm text-faint hover:bg-chip" />
     </div>
+  );
+}
+
+/**
+ * Cierra la sesión y, cuando Clerk ha terminado, carga /sign-in con una navegación completa.
+ * Así no se recarga el panel con la sesión a medio borrar (eso provocaba un error de Clerk).
+ */
+function SignOutBtn({ className }: { className: string }) {
+  const { signOut } = useClerk();
+  return (
+    <button className={className} onClick={() => signOut().finally(() => window.location.assign("/sign-in"))}>
+      Salir
+    </button>
   );
 }
