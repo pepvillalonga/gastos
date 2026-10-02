@@ -9,6 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@clerk/localizations": "^4.21.2",
+    "@clerk/nextjs": "^7.9.10",
+    "@neondatabase/serverless": "^1.2.0",
     "next": "16.3.8",
     "react": "19.2.8",
     "react-dom": "19.2.8"

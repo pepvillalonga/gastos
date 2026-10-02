@@ -1,26 +1,110 @@
 @import "tailwindcss";
 
+/* Colores del diseño "Mis gastos" (Claude Design). Modo claro por defecto. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #fff;
+  --surface: oklch(0.975 0 0);
+  --chip: oklch(0.962 0 0);
+  --line: oklch(0.918 0 0);
+  --bar: oklch(0.86 0 0);
+  --text: oklch(0.2 0 0);
+  --muted: oklch(0.5 0 0);
+  --faint: oklch(0.68 0 0);
+  --pos: oklch(0.55 0.13 150);
+  --neg: oklch(0.56 0.17 27);
+  --scrim: oklch(0.2 0 0 / 0.28);
+  color-scheme: light;
+}
+
+/* Modo oscuro: por sistema (si no has elegido nada) o forzado con el botón. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: oklch(0.16 0 0);
+    --surface: oklch(0.12 0 0);
+    --chip: oklch(0.22 0 0);
+    --line: oklch(0.265 0 0);
+    --bar: oklch(0.37 0 0);
+    --text: oklch(0.96 0 0);
+    --muted: oklch(0.7 0 0);
+    --faint: oklch(0.52 0 0);
+    --pos: oklch(0.75 0.14 150);
+    --neg: oklch(0.71 0.16 27);
+    --scrim: oklch(0 0 0 / 0.55);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: oklch(0.16 0 0);
+  --surface: oklch(0.12 0 0);
+  --chip: oklch(0.22 0 0);
+  --line: oklch(0.265 0 0);
+  --bar: oklch(0.37 0 0);
+  --text: oklch(0.96 0 0);
+  --muted: oklch(0.7 0 0);
+  --faint: oklch(0.52 0 0);
+  --pos: oklch(0.75 0.14 150);
+  --neg: oklch(0.71 0.16 27);
+  --scrim: oklch(0 0 0 / 0.55);
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-chip: var(--chip);
+  --color-line: var(--line);
+  --color-bar: var(--bar);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-scrim: var(--scrim);
+  --font-sans: var(--font-geist), -apple-system, "Helvetica Neue", sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  /* El diseño cambia a escritorio (barra lateral) a partir de 860px */
+  --breakpoint-desk: 860px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+input::placeholder {
+  color: var(--faint);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.anim-fade { animation: fade 0.2s ease-out; }
+.anim-sheet { animation: sheetUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (min-width: 860px) {
+  .anim-sheet { animation: popIn 0.22s ease-out; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade, .anim-sheet { animation: none; }
 }
