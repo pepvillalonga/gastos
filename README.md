@@ -192,9 +192,9 @@ Haz un pago de prueba con Apple Pay: en unos segundos verás una notificación t
 1. Atajos → pestaña **Atajos** → **+**. Nómbralo **Gasto en efectivo** (así podrás decir «Oye Siri, gasto en efectivo»).
 2. Acción **Solicitar entrada**: tipo **Número**, pregunta `¿Cuánto?` (activa *Permitir decimales* si aparece la opción).
 3. Acción **Solicitar entrada**: tipo **Texto**, pregunta `¿Dónde?`.
-4. Acción **Elegir de la lista**, con estos elementos (pulsa **Lista** y añade uno por línea):
-   `Automática`, `Pádel`, `Supermercado`, `Restaurantes y bares`, `Gasolina`, `Transporte`, `Deporte y gimnasio`, `Ocio`, `Compras`, `Ropa`, `Suscripciones`, `Salud y farmacia`, `Hogar`, `Viajes`, `Belleza y cuidado personal`, `Regalos`, `Educación`, `Otros`.
-   Pon como texto de la pregunta `Categoría`. Si eliges «Automática», la app la decide sola.
+4. La lista de categorías la da la propia app, no hace falta escribirla:
+   - Acción **Obtener contenido de URL** con la URL `https://TU-APP.vercel.app/api/ingest` (sin cambiar nada más: método GET, sin cabeceras).
+   - Acción **Elegir de la lista** (sobre **Contenido de la URL**), con la pregunta `Categoría`. Si eliges «Automática», la app la decide sola.
 5. Acción **Obtener contenido de URL**, igual que en el atajo automático (URL, método `POST` y las dos cabeceras). En el **Cuerpo de la solicitud → JSON**, todos los campos de tipo **Texto**:
    - `amount` → variable **Entrada proporcionada** (la primera, la del importe).
    - `merchant` → variable **Entrada proporcionada** (la segunda). Si las dos se llaman igual, mantén pulsada la variable para elegir la correcta, o usa **Ajustar variable** después de cada pregunta para ponerles nombre (`importe`, `comercio`).

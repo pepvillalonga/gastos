@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { getCategory } from "@/lib/categories";
+import { CATEGORY_LIST, getCategory } from "@/lib/categories";
 import { formatEUR, parseAmount } from "@/lib/money";
 import { createTransaction, parsePaidAt, type TxSource } from "@/lib/transactions";
 
@@ -23,6 +23,11 @@ function text(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (typeof value === "number") return String(value);
   return "";
+}
+
+/** Lista de categorías para el «Elegir de la lista» del atajo manual. No es secreta. */
+export function GET() {
+  return Response.json(["Automática", ...CATEGORY_LIST.map((c) => c.name)]);
 }
 
 export async function POST(req: Request) {
