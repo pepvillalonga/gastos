@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAllowed } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { isCategoryId, resolveCategory } from "@/lib/categories";
 import { parseAmount } from "@/lib/money";
 import {
@@ -21,7 +21,7 @@ function refresh() {
 }
 
 export async function changeCategoryAction(id: string, category: string): Promise<ActionResult> {
-  await requireAllowed();
+  await requireUser();
   if (!validId(id) || !isCategoryId(category)) return { ok: false, error: "Datos no válidos" };
   const done = await setTransactionCategory(id, category);
   refresh();
@@ -29,7 +29,7 @@ export async function changeCategoryAction(id: string, category: string): Promis
 }
 
 export async function deleteTransactionAction(id: string): Promise<ActionResult> {
-  await requireAllowed();
+  await requireUser();
   if (!validId(id)) return { ok: false, error: "Datos no válidos" };
   await deleteTransaction(id);
   refresh();
@@ -47,7 +47,7 @@ function readForm(form: FormData) {
 }
 
 export async function addTransactionAction(form: FormData): Promise<ActionResult> {
-  await requireAllowed();
+  await requireUser();
   const data = readForm(form);
   if ("error" in data) return { ok: false, error: data.error! };
   try {
@@ -66,7 +66,7 @@ export async function addTransactionAction(form: FormData): Promise<ActionResult
 }
 
 export async function editTransactionAction(id: string, form: FormData): Promise<ActionResult> {
-  await requireAllowed();
+  await requireUser();
   if (!validId(id)) return { ok: false, error: "Datos no válidos" };
   const data = readForm(form);
   if ("error" in data) return { ok: false, error: data.error! };

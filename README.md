@@ -14,7 +14,6 @@ Registra tus gastos automáticamente: pagas con Apple Pay en el iPhone → un at
 app/
   (app)/page.tsx            Panel (mes, total, por día, por categoría, top comercios)
   (app)/movimientos/        Lista con buscador y filtros
-  (app)/layout.tsx          Comprueba ALLOWED_EMAILS
   api/ingest/route.ts       Endpoint para los atajos del iPhone
   actions.ts                Server actions (cambiar categoría, borrar, añadir, editar)
   sign-in/page.tsx          Pantalla de entrada
@@ -47,8 +46,8 @@ proxy.ts                    Protección con Clerk (en Next.js 16 el middleware s
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (empieza por `pk_`)
    - `CLERK_SECRET_KEY` (empieza por `sk_`)
 4. **Crea tu usuario**: en **Users → Create user** añade tu email (o entra una vez en la web y regístrate antes del paso siguiente).
-5. **Desactiva el registro público**: **Configure → Restrictions** (en algunas versiones del panel: *User & authentication → Restrictions*) → **Sign-up mode → Restricted**. Así nadie más puede crear cuenta.
-   Aun así, la app también comprueba `ALLOWED_EMAILS`: si alguien entrase con otro email, verá «Sin acceso» y no podrá hacer nada (las server actions también lo comprueban).
+5. **Desactiva el registro público (imprescindible)**: **Configure → Restrictions** (en algunas versiones del panel: *User & authentication → Restrictions*) → **Sign-up mode → Restricted**.
+   ⚠️ Cualquier usuario de tu app de Clerk puede ver y modificar todos los gastos. Si dejas el registro abierto, cualquiera podría crearse una cuenta y entrar. Revisa también **Users** para que solo estés tú.
 
 > Las claves `pk_test_`/`sk_test_` (instancia de *desarrollo*) funcionan en un dominio `*.vercel.app`, pero muestran un pequeño aviso de «Development mode». Las de *producción* requieren un dominio propio. Para uso personal, las de desarrollo son suficientes.
 
@@ -107,7 +106,6 @@ El archivo `.env.local` **no** se sube (está en `.gitignore`); solo se sube `.e
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_...` de Clerk |
 | `CLERK_SECRET_KEY` | `sk_...` de Clerk |
 | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in` |
-| `ALLOWED_EMAILS` | tu email (varios separados por comas) |
 | `INGEST_SECRET` | la clave del paso 4 |
 | `GEMINI_API_KEY` | la clave de AI Studio |
 | `GEMINI_MODEL` | `gemini-3.5-flash-lite` (opcional) |
@@ -218,7 +216,6 @@ Los colores y emojis están en [`lib/categories.ts`](lib/categories.ts). Las pal
 
 ## Problemas frecuentes
 
-- **«Sin acceso» al entrar**: tu email no está en `ALLOWED_EMAILS` en Vercel (o no está verificado en Clerk). Corrígelo y haz *Redeploy*.
 - **«Algo ha fallado» en el panel**: revisa `DATABASE_URL` y que ejecutaste `db/schema.sql`.
 - **Todo cae en «Otros»**: revisa `GEMINI_API_KEY` y mira los logs en Vercel (**Project → Logs**, busca `[gemini]`).
 - **El atajo dice «No autorizado»**: la cabecera debe ser exactamente `Authorization: Bearer TU_INGEST_SECRET`.

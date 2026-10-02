@@ -19,7 +19,6 @@ export default clerkMiddleware(async (auth, req) => {
     }
     return NextResponse.redirect(new URL("/sign-in", req.url));
   }
-  // La comprobación de ALLOWED_EMAILS se hace en el servidor (layout y server actions).
 });
 
 export const config = {
