@@ -230,3 +230,7 @@ Los colores y emojis están en [`lib/categories.ts`](lib/categories.ts). Las pal
 | El atajo dice «No autorizado» | La cabecera debe ser exactamente `Authorization: Bearer TU_INGEST_SECRET`, con un solo espacio. |
 | «La conexión de red se ha perdido» | El iPhone perdió la conexión en ese momento. Vuelve a ejecutar el atajo. |
 | Google abre Safari desde la web app y no vuelve con sesión | Limitación de iOS. Inicia sesión desde Safari, o activa en Clerk el código por email (**User & authentication → Email → verification code**). |
+
+## Licencia
+
+[MIT](LICENSE) © 2026 Pep Villalonga
