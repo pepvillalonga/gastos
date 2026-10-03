@@ -68,6 +68,10 @@
 html,
 body {
   margin: 0;
+  /* La página exterior no se mueve: solo hace scroll el contenido (<main>) */
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
   touch-action: manipulation; /* sin retraso de doble toque en iOS */
   -webkit-tap-highlight-color: transparent;
   background: var(--surface);

@@ -16,7 +16,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <div className="flex h-dvh justify-center bg-surface">
         <div className="relative flex h-full w-full flex-col overflow-hidden bg-bg desk:flex-row">
           <Sidebar />
-          <main id="main" className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <main id="main" className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="mx-auto max-w-[1040px] px-5 pt-2 pb-10 desk:px-12 desk:pt-9 desk:pb-[72px]">{children}</div>
           </main>
           <BottomNav />
@@ -79,7 +79,8 @@ function BottomNav() {
   const tab = (on: boolean) =>
     `flex h-[58px] flex-col items-center justify-center gap-1 no-underline ${on ? "text-text" : "text-faint"}`;
   return (
-    <nav className="grid flex-none grid-cols-2 border-t border-line bg-bg pb-[env(safe-area-inset-bottom)] desk:hidden">
+    // touch-none: arrastrar sobre la barra no desplaza nada (los toques siguen funcionando)
+    <nav className="grid flex-none touch-none grid-cols-2 border-t border-line bg-bg pb-[env(safe-area-inset-bottom)] desk:hidden">
       <Link href="/" className={tab(section === "panel")} aria-current={section === "panel" ? "page" : undefined}>
         <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden>
           <rect x="3" y="11" width="3.5" height="8" rx="1" fill="currentColor" />

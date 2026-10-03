@@ -25,7 +25,7 @@ export function Sheet({ onClose, label, children }: { onClose: () => void; label
         aria-modal="true"
         aria-label={label}
         onClick={(e) => e.stopPropagation()}
-        className="anim-sheet max-h-[90%] w-full overflow-y-auto rounded-t-[20px] border border-line bg-bg px-[22px] pt-2.5 pb-[calc(28px+env(safe-area-inset-bottom))] desk:max-w-[480px] desk:rounded-[20px] desk:pb-7"
+        className="anim-sheet max-h-[90%] w-full overflow-y-auto overscroll-contain rounded-t-[20px] border border-line bg-bg px-[22px] pt-2.5 pb-[calc(28px+env(safe-area-inset-bottom))] desk:max-w-[480px] desk:rounded-[20px] desk:pb-7"
       >
         <div className="flex justify-center pb-1 desk:opacity-0">
           <div className="h-1 w-9 rounded-sm bg-line" />
