@@ -1,6 +1,6 @@
 # Mis gastos
 
-Registra tus gastos automáticamente: pagas con Apple Pay en el iPhone → un atajo envía el pago a esta app → se clasifica en una categoría y se guarda en Neon (Postgres) → lo ves en una web privada pensada para el móvil.
+Registra tus gastos automáticamente: pagas con Apple Pay en el iPhone → un atajo envía el pago a esta app → se clasifica en una categoría y se guarda en Neon (Postgres) → lo ves en una web app privada pensada para el iPhone.
 
 - **Stack**: Next.js 16 (App Router, TypeScript, Tailwind) · Neon · Clerk · Gemini (plan gratuito) · Vercel
 - **Clasificación** (en este orden): categoría enviada por el atajo → regla guardada del comercio → palabras clave de comercios españoles → Gemini → «Otros». La IA nunca impide guardar un pago.
@@ -14,14 +14,15 @@ Registra tus gastos automáticamente: pagas con Apple Pay en el iPhone → un at
 app/
   (app)/page.tsx            Panel (mes, total, por día, por categoría, top comercios)
   (app)/movimientos/        Lista con buscador y filtros
-  api/ingest/route.ts       Endpoint para los atajos del iPhone
+  api/ingest/route.ts       Endpoint de los atajos (POST guarda un gasto, GET lista las categorías)
   actions.ts                Server actions (cambiar categoría, borrar, añadir, editar)
   sign-in/page.tsx          Pantalla de entrada
+  manifest.ts, apple-icon.tsx, icon.svg   Web app para iOS e iconos
 components/                 Piezas de la interfaz
 lib/
   transactions.ts           Guardar, clasificar, duplicados y consultas
   merchant.ts               Normalizar nombres + palabras clave
-  gemini.ts                 Llamada REST a Gemini
+  gemini.ts                 Llamada REST a Gemini (con modelo de respaldo)
   money.ts                  Leer "1.234,56 €" y formatear importes
 db/schema.sql               Tablas para ejecutar en Neon
 proxy.ts                    Protección con Clerk (en Next.js 16 el middleware se llama proxy)
@@ -29,182 +30,186 @@ proxy.ts                    Protección con Clerk (en Next.js 16 el middleware s
 
 ---
 
-## 1. Base de datos en Neon
+## 1. GitHub y Vercel
 
-1. Entra en <https://neon.tech> y crea una cuenta (gratis).
-2. **Create project** → nombre `gastos`, región **AWS Europe Central 1 (Frankfurt)** (la más cercana a España), Postgres la versión por defecto.
-3. En el menú de la izquierda abre **SQL Editor**, pega el contenido de [`db/schema.sql`](db/schema.sql) y pulsa **Run**. Debe terminar sin errores (puedes ejecutarlo más veces sin problema).
-4. Pulsa **Connect** (arriba en el panel del proyecto) y copia la **connection string**. Es algo como
-   `postgresql://neondb_owner:xxxx@ep-xxxx-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require`.
-   Ese es tu `DATABASE_URL`.
+1. Sube el código a un repositorio **privado** de GitHub.
+2. En <https://vercel.com> → **Add New… → Project** → importa el repositorio. Vercel detecta Next.js solo.
+3. Cada `git push` a `main` despliega automáticamente.
 
-## 2. Login con Clerk
+El archivo `.env` / `.env.local` **no** se sube (está en `.gitignore`); solo se sube `.env.example`, que no tiene secretos.
 
-1. Entra en <https://dashboard.clerk.com>, crea una cuenta y pulsa **Create application**.
-2. Nombre `Mis gastos`. En las opciones de inicio de sesión deja **Email** (y si quieres **Google**). Crear.
-3. En **Configure → API keys** copia:
-   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (empieza por `pk_`)
-   - `CLERK_SECRET_KEY` (empieza por `sk_`)
-4. **Crea tu usuario**: en **Users → Create user** añade tu email (o entra una vez en la web y regístrate antes del paso siguiente).
-5. **Desactiva el registro público (imprescindible)**: **Configure → Restrictions** (en algunas versiones del panel: *User & authentication → Restrictions*) → **Sign-up mode → Restricted**.
-   ⚠️ Cualquier usuario de tu app de Clerk puede ver y modificar todos los gastos. Si dejas el registro abierto, cualquiera podría crearse una cuenta y entrar. Revisa también **Users** para que solo estés tú.
+## 2. Base de datos (Neon desde Vercel)
 
-> Las claves `pk_test_`/`sk_test_` (instancia de *desarrollo*) funcionan en un dominio `*.vercel.app`, pero muestran un pequeño aviso de «Development mode». Las de *producción* requieren un dominio propio. Para uso personal, las de desarrollo son suficientes.
+1. Vercel → proyecto → **Storage → Create → Neon**, región **Frankfurt**. Vercel crea la base de datos y añade `DATABASE_URL` sola.
+2. **Open in Neon → SQL Editor** → pega el contenido de [`db/schema.sql`](db/schema.sql) → **Run**. La integración **no** crea las tablas; sin este paso los pagos fallan con `relation "transactions" does not exist`.
+3. En **Tables** deben aparecer `transactions` y `merchant_rules`.
 
-## 3. API key de Gemini (gratis)
+## 3. Dominio propio
 
-1. Entra en <https://aistudio.google.com> con tu cuenta de Google.
-2. Pulsa **Get API key → Create API key** (si te lo pide, crea un proyecto nuevo).
-3. Copia la clave: es tu `GEMINI_API_KEY`.
-4. `GEMINI_MODEL` es opcional. Por defecto se usa **`gemini-3.5-flash-lite`** (modelo Flash-Lite estable incluido en el plan gratuito a fecha de octubre de 2026). Si Google lo retira, cambia la variable en Vercel por el Flash-Lite que aparezca en <https://ai.google.dev/gemini-api/docs/models>, sin tocar código.
+Ejemplo con el subdominio `gastos.tu-dominio.com`; los registros se crean en tu proveedor de DNS.
 
-Solo se llama a Gemini con comercios nuevos que no estén en las reglas ni en las palabras clave, así que el consumo es mínimo.
+1. Vercel → proyecto → **Settings → Domains** → añade `gastos.tu-dominio.com`.
+2. En tu proveedor de DNS, en la zona de `tu-dominio.com`, crea:
 
-## 4. Clave para los atajos (`INGEST_SECRET`)
+| Tipo | Host | Destino |
+| --- | --- | --- |
+| A | `gastos` | `76.76.21.21` |
 
-Es la contraseña que enviará el iPhone. Genera una larga y aleatoria en la terminal:
+Vercel emite el certificado HTTPS solo en unos minutos.
+
+## 4. Login con Clerk (desde Vercel Marketplace)
+
+La aplicación de Clerk la gestiona la integración de Vercel, así que algunas cosas se cambian desde Vercel y otras desde Clerk.
+
+**Dominio de producción**
+1. Vercel → **Integrations → Clerk** → tu aplicación de Clerk → **Settings → Change Configuration** → **Production domain**: `gastos.tu-dominio.com`.
+2. Clerk → **Production → Configure → Domains** muestra 5 registros. Créalos en tu DNS como **CNAME** (si tu proveedor añade el dominio solo, pon solo la parte de la izquierda):
+
+| Host | Destino |
+| --- | --- |
+| `clerk.gastos` | `frontend-api.clerk.services` |
+| `accounts.gastos` | `accounts.clerk.services` |
+| `clkmail.gastos` | `mail.….clerk.services` (cópialo de Clerk) |
+| `clk._domainkey.gastos` | `dkim1.….clerk.services` (cópialo de Clerk) |
+| `clk2._domainkey.gastos` | `dkim2.….clerk.services` (cópialo de Clerk) |
+
+3. Clerk → **Verify Records**, y espera a que salgan los certificados SSL en verde.
+4. Clerk → **API keys**: copia con 📋 la **Publishable key** (`pk_live_…`, debe ser larga) y la **Secret key** (`sk_live_…`). Ponlas en Vercel (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` como *Config* y `CLERK_SECRET_KEY` como *Secret*) → **Redeploy**.
+
+**Acceso privado (imprescindible)**
+- Clerk → **User & authentication → Access mode → Invite-only**. Nadie puede registrarse.
+- Clerk → **Users → Create user** con tu email.
+
+⚠️ Cualquier usuario de la app de Clerk puede ver y modificar todos los gastos: deja siempre el acceso en **Invite-only** y revisa que en **Users** solo estés tú.
+
+**Entrar con Google**
+En producción Clerk exige credenciales propias de Google:
+1. <https://console.cloud.google.com> → proyecto `Mis gastos` → **Google Auth Platform**:
+   - **Información de la marca**: nombre `Mis gastos`, tu email; en **Dominios autorizados** pon `tu-dominio.com` (el dominio raíz, no el subdominio).
+   - **Público**: déjalo en **Prueba** y añade tu Gmail en **Usuarios de prueba**. Publicar la app exigiría página principal y política de privacidad, y no hace falta.
+   - **Clientes → Crear cliente** → *Aplicación web*:
+     - Orígenes de JavaScript: `https://gastos.tu-dominio.com`
+     - URI de redireccionamiento: `https://clerk.gastos.tu-dominio.com/v1/oauth_callback`
+2. Clerk → **SSO connections → Google** → **Use custom credentials**: pega el ID y el secreto, y activa **Enable for sign-up and sign-in**. Con *Invite-only* solo sirve para iniciar sesión. Los scopes por defecto (openid, email y profile) son suficientes.
+
+## 5. Gemini (gratis)
+
+1. <https://aistudio.google.com/apikey> → **Create API key** → ponla en Vercel como `GEMINI_API_KEY` → **Redeploy**.
+2. `GEMINI_MODEL` es opcional. Por defecto se usa `gemini-3.5-flash-lite`. Si Google responde que está saturado (503), tiene un límite (429) o tarda más de 6 s, la app reintenta con `gemini-3.1-flash-lite`. Los dos son del plan gratuito.
+
+Solo se llama a Gemini con comercios nuevos que no estén en las reglas ni en las palabras clave. Si Gemini falla, el gasto se guarda en «Otros» **sin** crear regla, así que se reintentará la próxima vez.
+
+## 6. Clave de los atajos (`INGEST_SECRET`)
+
+Es la contraseña que envía el iPhone. Genera una larga y aleatoria:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Guárdala: la necesitarás en Vercel y en los dos atajos.
+Ponla en Vercel como *Secret* y guárdala para los atajos.
 
-## 5. Probar en tu ordenador (opcional)
+## 7. Variables de entorno en Vercel
 
-```bash
-cp .env.example .env.local   # y rellena los valores
-npm install
-npm run dev
-```
+| Nombre | Valor | Tipo |
+| --- | --- | --- |
+| `DATABASE_URL` | la pone la integración de Neon | Secret |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_…` | Config |
+| `CLERK_SECRET_KEY` | `sk_live_…` | Secret |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in` | Config |
+| `INGEST_SECRET` | la clave del paso 6 | Secret |
+| `GEMINI_API_KEY` | la clave de AI Studio | Secret |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` (opcional) | Config |
 
-Abre <http://localhost:3000>.
+Después de cambiar variables: **Deployments → ⋯ → Redeploy**.
 
-## 6. Subir a GitHub
+Para desarrollo local: `cp .env.example .env.local`, rellena los valores, y luego `npm install` y `npm run dev`.
 
-1. Crea un repositorio **privado** vacío en <https://github.com/new> (por ejemplo `gastos`), sin README.
-2. En la carpeta del proyecto:
-
-```bash
-git add .
-git commit -m "Primera versión de Mis gastos"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/gastos.git
-git push -u origin main
-```
-
-El archivo `.env.local` **no** se sube (está en `.gitignore`); solo se sube `.env.example`, que no tiene secretos.
-
-## 7. Desplegar en Vercel
-
-1. Entra en <https://vercel.com> con tu cuenta de GitHub → **Add New… → Project** → importa el repositorio `gastos`.
-2. Framework: Next.js (lo detecta solo). Antes de pulsar **Deploy**, abre **Environment Variables** y añade:
-
-| Nombre | Valor |
-| --- | --- |
-| `DATABASE_URL` | la connection string de Neon |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_...` de Clerk |
-| `CLERK_SECRET_KEY` | `sk_...` de Clerk |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in` |
-| `INGEST_SECRET` | la clave del paso 4 |
-| `GEMINI_API_KEY` | la clave de AI Studio |
-| `GEMINI_MODEL` | `gemini-3.5-flash-lite` (opcional) |
-
-3. **Deploy**. Al terminar tendrás una URL tipo `https://gastos-tuusuario.vercel.app`.
-4. Si cambias variables más adelante: **Settings → Environment Variables** y luego **Deployments → ⋯ → Redeploy**.
-
-> En el iPhone abre la web en Safari → botón Compartir → **Añadir a pantalla de inicio**. Se abrirá a pantalla completa como una app.
-
-## 8. Probar el endpoint con curl
-
-En macOS, Linux o Git Bash (Windows):
+## 8. Probar el endpoint
 
 ```bash
-curl -X POST https://TU-APP.vercel.app/api/ingest \
+curl -X POST https://gastos.tu-dominio.com/api/ingest \
   -H "Authorization: Bearer TU_INGEST_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"amount":"12,50 €","merchant":"Mercadona","card":"Visa 4821","source":"applepay"}'
 ```
 
-Respuesta esperada:
+Respuesta:
 
 ```json
 {"ok":true,"duplicate":false,"category":"supermercado","category_name":"Supermercado","message":"12,50 € en Mercadona → Supermercado"}
 ```
 
-En PowerShell (Windows):
+En PowerShell:
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri "https://TU-APP.vercel.app/api/ingest" `
+Invoke-RestMethod -Method Post -Uri "https://gastos.tu-dominio.com/api/ingest" `
   -Headers @{ Authorization = "Bearer TU_INGEST_SECRET" } -ContentType "application/json; charset=utf-8" `
   -Body '{"amount":"8,90 €","merchant":"Frutería Paco","category":"Supermercado","source":"manual"}'
 ```
 
-### Campos que acepta `POST /api/ingest`
+`GET https://gastos.tu-dominio.com/api/ingest` devuelve la lista de categorías («Automática» + las 17), que usa el atajo manual. No es secreta.
+
+### Campos de `POST /api/ingest`
 
 | Campo | Obligatorio | Ejemplo | Notas |
 | --- | --- | --- | --- |
 | `amount` | sí | `"12,50 €"`, `"1.234,56€"`, `12.5` | Texto en formato español o número. Negativo = devolución. |
 | `merchant` | sí | `"Mercadona"` | |
 | `card` | no | `"Visa 4821"` | |
-| `category` | no | `"Supermercado"` o `"supermercado"` | Si no es una categoría válida (p. ej. «Automática»), se clasifica sola. |
+| `category` | no | `"Supermercado"` o `"supermercado"` | Si falta o no es válida (p. ej. «Automática»), se clasifica sola. |
 | `source` | no | `"applepay"` / `"manual"` | Por defecto `applepay`. |
 | `paid_at` | no | `"2026-10-03T14:05:00+02:00"`, `"03/10/2026 14:05"` | Si falta o no se entiende, se usa la hora actual. |
 
-Errores: `401` clave incorrecta, `400` datos no válidos (el campo `message` explica qué falta), `500` fallo de base de datos.
+Errores: `401` clave incorrecta · `400` datos no válidos (el campo `message` explica qué falta) · `500` fallo de base de datos (mira los logs de Vercel).
 
 ---
 
-## 9. Atajo automático para Apple Pay
+## 9. Atajo automático (Apple Pay)
 
-Se ejecuta solo cada vez que pagas con Apple Pay. Hace falta iOS 17 o posterior.
+Se ejecuta solo cada vez que pagas con Apple Pay (iOS 17 o posterior).
 
-1. Abre la app **Atajos** → pestaña **Automatización** → **+** (o **Nueva automatización**).
-2. Elige **Transacción**. Ojo: **no** elijas «App».
-3. Configura:
-   - **Tarjeta**: marca tus tarjetas de Apple Pay.
-   - **Categoría** y **Comercio**: déjalos en **Cualquiera**.
-   - Marca **Ejecutar inmediatamente**. Esto equivale a **desactivar «Preguntar antes de ejecutar»** (en versiones antiguas de iOS aparece como ese interruptor: desactívalo y confirma **No preguntar**).
-   - **Notificar al ejecutar**: desactívalo (ya mostraremos nuestra propia notificación).
-4. Pulsa **Siguiente** → **Nueva automatización en blanco**.
-5. Añade la acción **Obtener contenido de URL** y configúrala:
-   - **URL**: `https://TU-APP.vercel.app/api/ingest`
-   - Toca la flecha **›** (o «Mostrar más») para ver más opciones:
-   - **Método**: `POST`
-   - **Cabeceras** → **Añadir nueva cabecera** (dos veces):
-     - Clave `Authorization` → Valor `Bearer TU_INGEST_SECRET` (con la palabra Bearer, un espacio y tu clave)
-     - Clave `Content-Type` → Valor `application/json`
-   - **Cuerpo de la solicitud**: **JSON**. Añade estos campos (todos de tipo **Texto**):
-     - `amount` → toca el valor, elige la variable **Entrada del atajo** (aparece como *Transacción*), tócala otra vez y selecciona **Importe**.
-     - `merchant` → **Entrada del atajo** → **Comercio**.
-     - `card` → **Entrada del atajo** → **Tarjeta** (o **Nombre**, según la versión de iOS).
-     - `source` → escribe `applepay`.
-6. Añade la acción **Obtener valor del diccionario**: **Obtener** *Valor* de la **Clave** `message` en **Contenido de la URL**.
-7. Añade la acción **Mostrar notificación** y pon como texto la variable **Valor del diccionario**.
-8. Pulsa **OK**.
+1. **Atajos → Automatización → +** → **Transacción**.
+2. **Tarjeta**: tus tarjetas · **Categoría** y **Comercio**: *Cualquiera* · **Ejecutar inmediatamente** (equivale a desactivar «Preguntar antes de ejecutar») · **Notificar al ejecutar**: desactivado.
+3. **Siguiente → Nueva automatización en blanco**.
+4. **Obtener contenido de URL**:
+   - URL `https://gastos.tu-dominio.com/api/ingest`; toca **›** · **Método** `POST`
+   - **Cabeceras**: `Authorization` → `Bearer TU_INGEST_SECRET` · `Content-Type` → `application/json`
+   - **Cuerpo → JSON**, campos de tipo **Texto**:
+     - `amount` → **Entrada del atajo** → **Importe**
+     - `merchant` → **Entrada del atajo** → **Comercio**
+     - `card` → **Entrada del atajo** → **Nombre** (o **Tarjeta**, según la versión de iOS)
+     - `source` → `applepay`
+5. **Obtener valor del diccionario**: clave `message` en **Contenido de la URL**.
+6. **Mostrar notificación** con **Valor del diccionario** → **OK**.
 
-Haz un pago de prueba con Apple Pay: en unos segundos verás una notificación tipo «12,50 € en Mercadona → Supermercado».
-
-> Si no ves la notificación, abre el atajo y pulsa ▶︎ para probarlo: Atajos te mostrará el error. Lo más habitual es la cabecera `Authorization` mal escrita (respuesta `No autorizado`).
+Si lo ejecutas con ▶︎ sin un pago real verás «Importe no válido». Es normal: la prueba de verdad es pagar algo.
 
 ## 10. Atajo manual (efectivo o tarjeta física)
 
-1. Atajos → pestaña **Atajos** → **+**. Nómbralo **Gasto en efectivo** (así podrás decir «Oye Siri, gasto en efectivo»).
-2. Acción **Solicitar entrada**: tipo **Número**, pregunta `¿Cuánto?` (activa *Permitir decimales* si aparece la opción).
-3. Acción **Solicitar entrada**: tipo **Texto**, pregunta `¿Dónde?`.
-4. La lista de categorías la da la propia app, no hace falta escribirla:
-   - Acción **Obtener contenido de URL** con la URL `https://TU-APP.vercel.app/api/ingest` (sin cambiar nada más: método GET, sin cabeceras).
-   - Acción **Elegir de la lista** (sobre **Contenido de la URL**), con la pregunta `Categoría`. Si eliges «Automática», la app la decide sola.
-5. Acción **Obtener contenido de URL**, igual que en el atajo automático (URL, método `POST` y las dos cabeceras). En el **Cuerpo de la solicitud → JSON**, todos los campos de tipo **Texto**:
-   - `amount` → variable **Entrada proporcionada** (la primera, la del importe).
-   - `merchant` → variable **Entrada proporcionada** (la segunda). Si las dos se llaman igual, mantén pulsada la variable para elegir la correcta, o usa **Ajustar variable** después de cada pregunta para ponerles nombre (`importe`, `comercio`).
-   - `category` → variable **Elemento seleccionado**.
-   - `card` → escribe `Efectivo` (o déjalo fuera).
-   - `source` → escribe `manual`.
-6. **Obtener valor del diccionario** (clave `message`) y **Mostrar notificación**, como en el atajo automático.
-7. En los ajustes del atajo (icono ⓘ) puedes activar **Añadir a pantalla de inicio** o **Mostrar en la hoja de compartir**.
+**Atajos → +** → nómbralo **Gasto en efectivo**:
 
-Este atajo solo se ejecuta cuando lo lanzas tú, así que no pregunta nada antes de ejecutarse. También puedes añadir gastos desde la web con el botón **+**.
+1. **Solicitar entrada**: *Número*, `¿Cuánto?` → **Ajustar variable** `importe`.
+2. **Solicitar entrada**: *Texto*, `¿Dónde?` → **Ajustar variable** `comercio`.
+3. *(Opcional, para elegir la categoría)*:
+   - **Obtener contenido de URL**: `https://gastos.tu-dominio.com/api/ingest`, sin tocar nada más.
+   - **Elegir de la lista** sobre **Contenido de la URL**, con la pregunta `Categoría`.
+
+   Si te saltas este paso, la categoría siempre es automática.
+4. **Obtener contenido de URL**: misma URL, **POST** y las dos cabeceras. **Cuerpo → JSON** (Texto):
+   - `amount` → **importe** · `merchant` → **comercio** · `card` → `Efectivo` · `source` → `manual`
+   - Solo si hiciste el paso 3: `category` → **Elemento seleccionado**.
+5. **Obtener valor del diccionario** (clave `message`) → **Mostrar notificación** → **OK**.
+
+Puedes lanzarlo desde la pantalla de inicio, con Siri («Oye Siri, gasto en efectivo») o desde el Botón de Acción. No borres ninguna cabecera a medias: una cabecera vacía puede dar error.
+
+## 11. Web app en el iPhone
+
+1. Abre <https://gastos.tu-dominio.com> en **Safari**.
+2. **Compartir → Añadir a pantalla de inicio** → activa **Abrir como app web**.
+3. **Inicia sesión dentro de la app instalada**: iOS guarda su sesión por separado de Safari.
+
+La app se abre a pantalla completa y recarga los datos cada vez que vuelves a ella. Solo se desplaza el contenido: la barra inferior queda fija.
 
 ---
 
@@ -212,10 +217,16 @@ Este atajo solo se ejecuta cuando lo lanzas tú, así que no pregunta nada antes
 
 🎾 Pádel · 🛒 Supermercado · 🍽️ Restaurantes y bares · ⛽ Gasolina · 🚗 Transporte · 💪 Deporte y gimnasio · 🎉 Ocio · 🛍️ Compras · 👕 Ropa · 🔁 Suscripciones · 💊 Salud y farmacia · 🏠 Hogar · ✈️ Viajes · 💈 Belleza y cuidado personal · 🎁 Regalos · 📚 Educación · 📦 Otros
 
-Los colores y emojis están en [`lib/categories.ts`](lib/categories.ts). Las palabras clave de comercios, en [`lib/merchant.ts`](lib/merchant.ts): añade las tuyas si algún comercio habitual no se reconoce (o cámbialo una vez desde la web y ya quedará guardado).
+Los colores y emojis están en [`lib/categories.ts`](lib/categories.ts). Las palabras clave de comercios, en [`lib/merchant.ts`](lib/merchant.ts). O cambia la categoría una vez desde la web y quedará guardada como regla.
 
 ## Problemas frecuentes
 
-- **«Algo ha fallado» en el panel**: revisa `DATABASE_URL` y que ejecutaste `db/schema.sql`.
-- **Todo cae en «Otros»**: revisa `GEMINI_API_KEY` y mira los logs en Vercel (**Project → Logs**, busca `[gemini]`).
-- **El atajo dice «No autorizado»**: la cabecera debe ser exactamente `Authorization: Bearer TU_INGEST_SECRET`.
+| Síntoma | Causa y solución |
+| --- | --- |
+| «Entrar» no hace nada | Clerk no carga: la `pk_live_` de Vercel está mal copiada o el dominio de Clerk no está verificado. Cópiala con 📋 desde **API keys** y haz Redeploy. |
+| Error de Clerk `handshake` / `resource_not_found` | Las claves de Clerk son de una aplicación que ya no existe. Pon las claves actuales y haz Redeploy. |
+| «Algo ha fallado» en el panel | Revisa `DATABASE_URL` y que ejecutaste `db/schema.sql`. |
+| Todo cae en «Otros» | `GEMINI_API_KEY` vacía o inválida. Busca `[gemini]` en **Vercel → Logs**. |
+| El atajo dice «No autorizado» | La cabecera debe ser exactamente `Authorization: Bearer TU_INGEST_SECRET`, con un solo espacio. |
+| «La conexión de red se ha perdido» | El iPhone perdió la conexión en ese momento. Vuelve a ejecutar el atajo. |
+| Google abre Safari desde la web app y no vuelve con sesión | Limitación de iOS. Inicia sesión desde Safari, o activa en Clerk el código por email (**User & authentication → Email → verification code**). |
