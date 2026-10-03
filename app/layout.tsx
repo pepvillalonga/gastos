@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "Tus pagos con Apple Pay, ordenados solos.",
   robots: { index: false, follow: false },
   appleWebApp: { capable: true, title: "Mis gastos", statusBarStyle: "default" },
+  // Que iOS no convierta importes como "1.234" en enlaces de teléfono
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {

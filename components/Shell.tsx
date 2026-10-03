@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
 import { ThemeTextButton } from "./ThemeToggle";
 import { TxProvider, useTx } from "./TxProvider";
@@ -9,6 +10,7 @@ import { TxProvider, useTx } from "./TxProvider";
 const sideBtn = "h-10 cursor-pointer rounded-[10px] px-3 text-left text-sm text-muted hover:bg-chip";
 
 export function Shell({ children }: { children: React.ReactNode }) {
+  useRefreshOnReturn();
   return (
     <TxProvider>
       <div className="flex h-dvh justify-center bg-surface">
@@ -22,6 +24,19 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </div>
     </TxProvider>
   );
+}
+
+/**
+ * iOS mantiene la web app en memoria: al volver a abrirla (p. ej. tras pagar con
+ * Apple Pay) recargamos los datos del servidor para ver los gastos nuevos.
+ */
+function useRefreshOnReturn() {
+  const router = useRouter();
+  useEffect(() => {
+    const onVisible = () => document.visibilityState === "visible" && router.refresh();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [router]);
 }
 
 function useSection() {

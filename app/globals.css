@@ -68,6 +68,8 @@
 html,
 body {
   margin: 0;
+  touch-action: manipulation; /* sin retraso de doble toque en iOS */
+  -webkit-tap-highlight-color: transparent;
   background: var(--surface);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
